@@ -14,13 +14,37 @@ const gastosSchema = mongoose.Schema({
   nombreCategoria: {
     type: String,
   },
+  nombreSupermercado: {
+    type: String,
+  },
+  nombreSubCategoria: {
+    type: String,
+  },
+  supermercado: {
+    type: Boolean,
+    default: false,
+  },
   categoria: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Categoria",
   },
+  subCategoria: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategoria",
+  },
   usuario: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Usuario",
+  },
+  productos: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Producto",
+    },
+  ],
+  supercadoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SuperMercado",
   },
   importe: {
     type: String,

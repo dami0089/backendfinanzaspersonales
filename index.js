@@ -12,6 +12,14 @@ dotenv.config();
 
 conectarDB();
 
+// app.use(
+//   cors({
+//     origin: "https://finper.netlify.app",
+//     methods: ["GET", "POST", "PUT", "DELETE"],
+//     allowedHeaders: ["Content-Type", "Authorization"],
+//   })
+// );
+
 app.use(
   cors({
     origin: "*",
@@ -20,9 +28,9 @@ app.use(
   })
 );
 
-app.use("/api/gastos", gastosRoutes);
-app.use("/api/usuarios", usuariosRoutes);
+app.use("/api2/gastos", gastosRoutes);
+app.use("/api2/usuarios", usuariosRoutes);
 
-app.listen(4000, () => {
-  console.log("Ejecutando en el puerto 4000");
+app.listen(4001, () => {
+  console.log("Ejecutando en el puerto 4001");
 });

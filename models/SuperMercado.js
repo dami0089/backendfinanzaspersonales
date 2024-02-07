@@ -1,21 +1,15 @@
 import mongoose from "mongoose";
 
-const categoriaSchema = mongoose.Schema(
+const superMercadoSchema = mongoose.Schema(
   {
     nombre: {
       type: String,
       trim: true,
     },
-    subCat: {
+    direccion: {
       type: String,
       trim: true,
     },
-    subCategorias: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "SubCategoria",
-      },
-    ],
     usuario: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Usuario",
@@ -26,6 +20,6 @@ const categoriaSchema = mongoose.Schema(
   }
 );
 
-const Categoria = mongoose.model("Categoria", categoriaSchema);
+const SuperMercado = mongoose.model("SuperMercado", superMercadoSchema);
 
-export default Categoria;
+export default SuperMercado;

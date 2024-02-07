@@ -1,5 +1,8 @@
 import Categoria from "../models/Categoria.js";
-import Gasto from "../models/gasto.js";
+import Gasto from "../models/Gasto.js";
+import Producto from "../models/Producto.js";
+import SubCategoria from "../models/SubCategoria.js";
+import SuperMercado from "../models/SuperMercado.js";
 
 const nuevaCategoria = async (req, res) => {
   const categoria = new Categoria(req.body);
@@ -12,12 +15,39 @@ const nuevaCategoria = async (req, res) => {
   }
 };
 
+const nuevaSubCategoria = async (req, res) => {
+  const subCat = new SubCategoria(req.body);
+
+  try {
+    const subcatGuardada = await subCat.save();
+
+    // Buscar la categoría correspondiente y agregar la subcategoría al array de subCategorias
+    const categoria = await Categoria.findById(subCat.categoria);
+    if (!categoria) {
+      return res.status(404).json({ msg: "Categoría no encontrada" });
+    }
+
+    // Agregar la subcategoría guardada al array de subCategorias
+    categoria.subCategorias.push(subcatGuardada._id);
+
+    // Guardar la categoría actualizada
+    await categoria.save();
+
+    res.json({ msg: "Sub-Categoría guardada correctamente" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ msg: "Error al grabar Sub-Categoría" });
+  }
+};
+
 const nuevoGasto = async (req, res) => {
   const gasto = new Gasto(req.body);
 
   const categoria = await Categoria.findById(gasto.categoria);
+  const subCategoria = await SubCategoria.findById(gasto.subCategoria);
 
   gasto.nombreCategoria = categoria.nombre;
+  gasto.nombreSubCategoria = subCategoria.nombreSubCategoria;
 
   try {
     await gasto.save();
@@ -30,13 +60,81 @@ const nuevoGasto = async (req, res) => {
 const obtenerCategorias = async (req, res) => {
   const { id } = req.params;
 
-  const categorias = await Categoria.find({ usuario: id });
+  try {
+    let categorias = await Categoria.find({ usuario: id }).populate({
+      path: "subCategorias",
+      select: "nombreSubCategoria categoria usuario createdAt updatedAt",
+    });
+
+    // Filtrar categorías para excluir las que contienen 'supermercado' o variantes.
+    categorias = categorias.filter((categoria) => {
+      const nombre = categoria.nombre.toLowerCase();
+      return !(
+        nombre.includes("supermercado") || nombre.includes("super mercado")
+      );
+    });
+
+    // Convertir a objetos y formatear (si es necesario)
+    const resultado = categorias.map((cat) => {
+      const catObj = cat.toObject();
+
+      // Opcional: ajustar el formateo de subCategorias si es necesario
+      catObj.subCategorias = catObj.subCategorias.map((sub) => ({
+        nombre: sub.nombreSubCategoria,
+        id: sub._id,
+        // Incluir más campos si es necesario
+      }));
+
+      return catObj;
+    });
+
+    res.json(resultado);
+  } catch (error) {
+    console.error(
+      "Error al obtener las categorías con sus subcategorías:",
+      error
+    );
+    res.status(500).json({ msg: "Error al obtener categorías" });
+  }
+};
+const obtenerCategoriaMercado = async (req, res) => {
+  const { id } = req.params;
 
   try {
-    res.json(categorias);
+    let categorias = await Categoria.find({ usuario: id }).populate({
+      path: "subCategorias",
+      select: "nombreSubCategoria categoria usuario createdAt updatedAt",
+    });
+
+    // Filtrar categorías para incluir solo las que contienen 'supermercado' o variantes.
+    categorias = categorias.filter((categoria) => {
+      const nombre = categoria.nombre.toLowerCase();
+      return (
+        nombre.includes("supermercado") || nombre.includes("super mercado")
+      );
+    });
+
+    // Convertir a objetos y formatear (si es necesario)
+    const resultado = categorias.map((cat) => {
+      const catObj = cat.toObject();
+
+      // Opcional: ajustar el formateo de subCategorias si es necesario
+      catObj.subCategorias = catObj.subCategorias.map((sub) => ({
+        nombre: sub.nombreSubCategoria,
+        id: sub._id,
+        // Incluir más campos si es necesario
+      }));
+
+      return catObj;
+    });
+
+    res.json(resultado);
   } catch (error) {
-    res.status(500).json({ msg: "Error al obtener categorias" });
-    console.log(error);
+    console.error(
+      "Error al obtener las categorías con sus subcategorías específicas:",
+      error
+    );
+    res.status(500).json({ msg: "Error al obtener categorías específicas" });
   }
 };
 
@@ -51,6 +149,27 @@ const editarCategoria = async (req, res) => {
     res.json({ msg: "Categoria Editada Correctamente" });
   } catch (error) {
     res.status(500).json({ msg: "Error al editar categoriaa" });
+    console.log(error);
+  }
+};
+
+const obtenerSoloCategorias = async (req, res) => {
+  const categorias = await Categoria.find();
+
+  res.json(categorias);
+};
+
+const editarSubCategoria = async (req, res) => {
+  const { id } = req.params;
+
+  const subcategoria = await SubCategoria.findById(id);
+
+  try {
+    subcategoria.nombreSubCategoria = req.body.nombre;
+    await subcategoria.save();
+    res.json({ msg: "Sub Categoria Editada Correctamente" });
+  } catch (error) {
+    res.status(500).json({ msg: "Error al editar sub categoriaa" });
     console.log(error);
   }
 };
@@ -70,6 +189,36 @@ const eliminarCategoria = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al eliminar la categoría" });
+  }
+};
+
+const eliminarSubCategoria = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Primero, encuentra y elimina la subcategoría especificada
+    const subcategoria = await SubCategoria.findByIdAndDelete(id);
+
+    // Si la subcategoría no existe, devuelve un error
+    if (!subcategoria) {
+      return res.status(404).json({ msg: "Sub Categoría no encontrada" });
+    }
+
+    // Luego, encuentra la categoría asociada a la subcategoría eliminada
+    const categoria = await Categoria.findById(subcategoria.categoria);
+
+    // Si la categoría existe, elimina la referencia a la subcategoría eliminada
+    if (categoria) {
+      categoria.subCategorias = categoria.subCategorias.filter(
+        (subCatId) => subCatId.toString() !== id
+      );
+      await categoria.save(); // Guarda la categoría con el array de subCategorias actualizado
+    }
+
+    res.json({ msg: "Sub Categoría eliminada correctamente" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ msg: "Error al eliminar la sub categoría" });
   }
 };
 
@@ -162,6 +311,7 @@ const obtenerGastosAcumuladosPorMes = async (req, res) => {
 
     const gastos = await Gasto.find({
       usuario: id,
+      concepto: "gasto",
       fecha: { $gte: inicioMes },
     });
 
@@ -286,6 +436,170 @@ const eliminarGasto = async (req, res) => {
   }
 };
 
+const nuevoSupermercado = async (req, res) => {
+  const superM = new SuperMercado(req.body);
+
+  try {
+    await superM.save();
+    res.json({ msg: "Supermercado guardado correctamente" });
+  } catch (error) {
+    res.status(500).json({ msg: "Error al grabar Supermercado" });
+  }
+};
+
+const obtenerSupermercados = async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Ordena por '_id' descendente para obtener los más recientes primero
+    const supermercados = await SuperMercado.find({ usuario: id }).sort({
+      _id: -1,
+    }); // Ordena los documentos por '_id' descendente
+
+    res.json(supermercados);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ msg: "Error al obtener gastos" });
+  }
+};
+
+const obtenerProductosSuperMercado = async (req, res) => {
+  const { id } = req.params;
+  console.log(id);
+  try {
+    // Ordena por '_id' descendente para obtener los más recientes primero
+    const productos = await SubCategoria.find({
+      usuario: id,
+      esMercado: true,
+    }).sort({
+      _id: -1,
+    }); // Ordena los documentos por '_id' descendente
+    console.log(productos);
+    res.json(productos);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ msg: "Error al obtener gastos" });
+  }
+};
+
+const nuevoProductoMercado = async (req, res) => {
+  const existeProducto = await SubCategoria.findOne({
+    nombreSubCategoria: req.body.nombreSubCategoria,
+  });
+  if (existeProducto) {
+    res.status(500).json({ msg: "Ya existe este producto" });
+    return;
+  }
+  try {
+    const nombresSupermercado = [/supermercado/i, /super mercado/i];
+    let categoria = await Categoria.findOne({
+      nombre: { $in: nombresSupermercado },
+      usuario: req.body.usuario,
+    });
+
+    if (!categoria) {
+      categoria = new Categoria({
+        nombre: "Supermercado",
+        subCat: "Gasto",
+        usuario: req.body.usuario,
+        // Asegúrate de inicializar subCategorias si es necesario
+        subCategorias: [],
+      });
+      await categoria.save();
+    }
+
+    const producto = new SubCategoria({
+      ...req.body,
+      categoria: categoria._id,
+      esMercado: true,
+    });
+
+    const productoAlmacenado = await producto.save();
+
+    // Ahora, actualizamos la categoría para incluir el nuevo producto en subCategorias
+    await Categoria.findByIdAndUpdate(categoria._id, {
+      $push: { subCategorias: productoAlmacenado._id },
+    });
+
+    res.json({ msg: "Producto de mercado guardado correctamente" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ msg: "Error al grabar producto de mercado" });
+  }
+};
+
+const nuevoGastoSupermercado = async (req, res) => {
+  try {
+    // Crear el gasto provisionalmente sin productos
+    const nombresSupermercado = [/supermercado/i, /super mercado/i];
+    let categoria = await Categoria.findOne({
+      nombre: { $in: nombresSupermercado },
+      usuario: req.body.usuario,
+    });
+
+    if (!categoria) {
+      categoria = new Categoria({
+        nombre: "Supermercado",
+        usuario: req.body.usuario,
+        subCategorias: [],
+      });
+      await categoria.save();
+    }
+
+    let nombreSuper = "";
+    if (req.body.supermercado) {
+      const supermercado = await SuperMercado.findById(req.body.supermercado);
+      nombreSuper = supermercado.nombre;
+    }
+
+    const gastoProvisional = new Gasto({
+      fecha: req.body.fecha,
+      concepto: "gasto",
+      nombreCategoria: categoria.nombre,
+      nombreSupermercado: nombreSuper,
+      supermercado: true,
+      categoria: categoria._id,
+      usuario: req.body.usuario,
+      productos: [], // Inicialmente vacío
+      supermercadoId: req.body.supermercado || "",
+      importe: req.body.importe,
+    });
+
+    await gastoProvisional.save();
+
+    // Crear productos y asignar el ID del gasto a cada uno
+    const productoIds = await Promise.all(
+      req.body.productos.map(async (producto) => {
+        const nuevoProducto = new Producto({
+          fecha: req.body.fecha,
+          nombreProducto: producto.nombreSubCategoria,
+          cantidad: producto.cantidad,
+          importeUnitario: producto.unitario,
+          importe: producto.importe,
+          subCategoria: producto._id,
+          usuario: req.body.usuario,
+          gasto: gastoProvisional._id, // Asignar el ID del gasto al producto
+        });
+
+        await nuevoProducto.save();
+        return nuevoProducto._id;
+      })
+    );
+
+    // Actualizar el gasto con los IDs de los productos creados
+    gastoProvisional.productos = productoIds;
+    await gastoProvisional.save();
+
+    res.json({
+      msg: "Gasto de supermercado y productos guardados correctamente",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      msg: "Hubo un error al guardar el gasto de supermercado y los productos",
+    });
+  }
+};
+
 export {
   nuevoGasto,
   nuevaCategoria,
@@ -298,4 +612,14 @@ export {
   obtenerGastosAcumuladosPorMes,
   obtenerResumenDelMes,
   eliminarGasto,
+  nuevaSubCategoria,
+  obtenerSoloCategorias,
+  editarSubCategoria,
+  eliminarSubCategoria,
+  obtenerCategoriaMercado,
+  nuevoSupermercado,
+  obtenerSupermercados,
+  obtenerProductosSuperMercado,
+  nuevoProductoMercado,
+  nuevoGastoSupermercado,
 };
